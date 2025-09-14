@@ -1,56 +1,21 @@
- #map-container {
-            height: 100vh;
-            width: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-        .user-toggle-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1001;
-        }
-        .leaflet-popup-content-wrapper {
-            border-radius: 10px;
-        }
-
-        /* Gaya Kustom untuk Marker Mirip Google Maps */
-        .custom-marker-icon {
-            background-color: #4285F4; /* Biru Google Maps */
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            border: 2px solid white;
-            box-shadow: 0 0 5px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-        .custom-marker-icon .arrow {
-            position: absolute;
-            top: -8px; /* Atur posisi panah di atas lingkaran */
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-bottom: 10px solid #4285F4; /* Warna panah sama dengan lingkaran */
-            display: block; /* Sembunyikan jika tidak ada heading */
-        }
-        .custom-marker-icon.no-heading .arrow {
-            display: none;
-        }
-        
-        /* Akurasi Lingkaran */
-        .leaflet-pane .leaflet-circle.accuracy-circle {
-            fill-opacity: 0.2;
-            fill-color: #4285F4;
-            stroke: none;
-        }
+#map-container {
+    height: 100vh;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+.user-toggle-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1001;
+}
+.leaflet-popup-content-wrapper {
+    border-radius: 10px;
+}
+/* CUSTOM MARKER CSS */
 .custom-marker-div-icon {
     position: relative;
     width: 20px;
@@ -91,4 +56,10 @@
 .leaflet-div-icon {
     background: transparent;
     border: none;
- }
+}
+/* ACCURACY CIRCLE CSS */
+.leaflet-pane .leaflet-circle.accuracy-circle {
+    fill-opacity: 0.2;
+    fill-color: #4A90E2;
+    stroke: none;
+}
