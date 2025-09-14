@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
   const firebaseConfig = {
-    apiKey: "AIzaSyAkCKw6wrA_2WfLP6NJofEDINj0TR4IPjo",
-    authDomain: "absensi-def4d.firebaseapp.com",
-    databaseURL: "https://absensi-def4d-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "absensi-def4d",
-    storageBucket: "absensi-def4d.firebasestorage.app",
-    messagingSenderId: "65318137326",
-    appId: "1:65318137326:web:acf691897d5f2b49c4f2ff",
-    measurementId: "G-D9PLB2DMF3"
-  };
+  apiKey: "AIzaSyCalf-RcByWIxdE3kyhcWwNwd8kSGX_fLE",
+  authDomain: "absensi2-741f0.firebaseapp.com",
+  databaseURL: "https://absensi2-741f0-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "absensi2-741f0",
+  storageBucket: "absensi2-741f0.firebasestorage.app",
+  messagingSenderId: "747934727309",
+  appId: "1:747934727309:web:0c1fbacd980c4bdf2bb6c4",
+  measurementId: "G-DGLR9P3Z33"
+};
   
   const app = new Vue({
     el: '#app',
