@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!this.db) return;
                 
                 // MENGUBAH JALUR INI
-                this.db.ref('location-data/' + userId).on('child_added', updateSnapshot =>{
+                this.db.ref('location-data').on('value', snapshot => {
                     const data = snapshot.val();
                     if (!data) {
                         this.users = [];
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // MENGUBAH JALUR INI
                 this.db.ref('location-data').on('child_added', snapshot => {
                     const userId = snapshot.key;
-                    this.db.ref(`location-data/${userId}`).on('child_added', updateSnapshot => {
+                    this.db.ref('location-data/' + userId).on('child_added', updateSnapshot => {
                         const update = updateSnapshot.val();
                         this.drawUserPath(userId, update);
                         if (update.riskLevel === 'high') {
