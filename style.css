@@ -51,3 +51,44 @@
             fill-color: #4285F4;
             stroke: none;
         }
+.custom-marker-div-icon {
+    position: relative;
+    width: 20px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+}
+.custom-marker-icon {
+    position: absolute;
+    bottom: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: #4A90E2;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.custom-marker-icon .arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 8px solid white;
+}
+.custom-marker-icon.no-heading {
+    transform: none;
+    border-radius: 50%;
+}
+.custom-marker-icon.no-heading .arrow {
+    display: none;
+}
+.leaflet-div-icon {
+    background: transparent;
+    border: none;
+ }
