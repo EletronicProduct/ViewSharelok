@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!this.db) return;
                 
                 // MENGUBAH JALUR INI
-                this.db.ref('location-data').on('value', snapshot => {
+                this.db.ref('location-data/' + userId).on('child_added', updateSnapshot =>{
                     const data = snapshot.val();
                     if (!data) {
                         this.users = [];
