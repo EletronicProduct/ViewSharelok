@@ -27,10 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
       db: firebase.database(),
       showBottomSheet: false,
       tab: null,
+      email: '',
+      password: '',
+      userLoggedIn: false,
     }),
     mounted() {
       this.initMap();
-      this.monitorUsers();
+      this.startListeningForData(); // Panggil fungsi baru
+      this.monitorAuthStatus(); // Panggil fungsi untuk memantau status login
     },
     methods: {
       initMap() {
@@ -39,7 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
           attribution: '© OpenStreetMap contributors'
         }).addTo(this.map);
       },
-      monitorUsers() {
+      monitorAuthStatus() {
+        firebase.auth().onAuthStateChanged(user => {
+          this.userLoggedIn = !!user;
+        });
+      },
+      startListeningForData() {
         if (!this.db) {
           this.addNotification('error', 'Gagal terhubung ke Firebase.');
           return;
@@ -71,13 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           }).filter(user => user.lat && user.lng);
           
-          // >>> INI KODE BARU UNTUK NOTIFIKASI <<<
           userArray.forEach(user => {
             if (user.riskLevel === 'high' || user.riskLevel === 'medium') {
               const message = `⚠️ Aktivitas mencurigakan dari **${user.name}**. Isu: ${user.issues.join(', ')}`;
               const type = user.riskLevel === 'high' ? 'error' : 'warning';
               
-              // Cek apakah notifikasi serupa sudah ada, untuk menghindari duplikasi
               const isDuplicate = this.notifications.some(n =>
                 n.id === user.id && n.message.includes(user.riskLevel)
               );
@@ -107,10 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.users.forEach(user => {
           const latLng = [user.lat, user.lng];
           const customIconHtml = `
-                        <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" style="transform: rotate(${user.heading || 0}deg);">
-                            <div class="arrow"></div>
-                        </div>
-                    `;
+            <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" style="transform: rotate(${user.heading || 0}deg);">
+              <div class="arrow"></div>
+            </div>
+          `;
           const customIcon = L.divIcon({
             className: 'custom-marker-div-icon',
             html: customIconHtml,
@@ -156,12 +163,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusColor = user.status === 'active' ? 'green' : 'red';
         const riskColor = user.riskLevel === 'high' ? 'red' : user.riskLevel === 'medium' ? 'orange' : 'green';
         return `
-                    <strong>Nama:</strong> ${user.name}<br>
-                    <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
-                    <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
-                    <strong>Update Terakhir:</strong> ${user.lastUpdate || 'N/A'}<br>
-                    <strong>Akurasi:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}
-                `;
+          <strong>Nama:</strong> ${user.name}<br>
+          <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
+          <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
+          <strong>Update Terakhir:</strong> ${user.lastUpdate || 'N/A'}<br>
+          <strong>Akurasi:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}
+        `;
       },
       panToUser(user) {
         this.clearPolylines();
@@ -207,7 +214,83 @@ document.addEventListener('DOMContentLoaded', () => {
       addNotification(type, message, userId = null) {
         const now = new Date().toLocaleString();
         this.notifications.unshift({ type, message, userId, time: now });
-      }
-    }
+      },
+      
+      async deleteBotData() {
+        if (!this.userLoggedIn) {
+this.addNotification('error', 'Anda harus login sebagai admin untuk melakukan ini.');
+return;
+}
+console.log("Mulai membersihkan data bot...");
+       if (!confirm('Apakah Anda yakin ingin menghapus data bot dari semua user?')) {
+       return;
+        } 
+        
+        const dbRef = this.db.ref('location-data');
+        try {
+          const snapshot = await dbRef.once('value');
+          const usersData = snapshot.val();
+          if (!usersData) {
+            console.log("Tidak ada data untuk dibersihkan.");
+            this.addNotification('info', 'Tidak ada data bot yang ditemukan.');
+            return;
+          }
+          
+          let deletedCount = 0;
+          for (const userId in usersData) {
+            const userData = usersData[userId];
+            for (const timestamp in userData) {
+              if (timestamp === 'latest') continue;
+              const entry = userData[timestamp];
+              if (entry.riskLevel === 'high') {
+                await this.db.ref(`location-data/${userId}/${timestamp}`).remove();
+                console.log(`Menghapus data bot dari user ${userId} pada timestamp ${timestamp}`);
+                deletedCount++;
+              }
+            }
+          }
+          console.log(`Pembersihan data selesai. Total data bot yang dihapus: ${deletedCount}`);
+          this.addNotification('success', `✅ Berhasil menghapus ${deletedCount} data bot.`);
+        } catch (error) {
+          console.error("Gagal membersihkan database:", error);
+          this.addNotification('error', 'Gagal menghapus data bot: ' + error.message);
+        }
+      },
+      
+      async deleteUserAndData(userId) {
+        if (!this.userLoggedIn) {
+          this.addNotification('error', 'Anda harus login sebagai admin untuk melakukan ini.');
+          return;
+        }
+        console.log(`Mulai menghapus semua data untuk user: ${userId}`);
+        if (!confirm(`Apakah Anda yakin ingin menghapus SEMUA data user ${userId}? Aksi ini tidak bisa dibatalkan!`)) {
+          return;
+        }
+        
+        try {
+          await this.db.ref(`location-data/${userId}`).remove();
+          console.log(`Semua data untuk user ${userId} telah dihapus.`);
+          this.addNotification('success', `✅ Berhasil menghapus semua data user ${userId}`);
+        } catch (error) {
+          console.error("Gagal menghapus data user:", error);
+          this.addNotification('error', `Gagal menghapus data user: ${error.message}`);
+        }
+      },
+      
+      async login() {
+        try {
+          await firebase.auth().signInWithEmailAndPassword(this.email, this.password);
+          this.addNotification('success', 'Berhasil login sebagai admin!');
+        } catch (error) {
+          this.addNotification('error', 'Gagal login: ' + error.message);
+        }
+      },
+      async logout() {
+        await firebase.auth().signOut();
+        this.addNotification('info', 'Berhasil logout.');
+      },
+    },
   });
+  
+  window.app = app;
 });
