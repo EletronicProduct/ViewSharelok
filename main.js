@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     measurementId: "G-DGLR9P3Z33"
   };
   
-  // Inisialisasi Firebase App
   if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
   }
@@ -46,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         
-        // Ambil semua data user secara real-time
         this.db.ref('location-data').on('value', snapshot => {
           const data = snapshot.val();
           if (!data) {
@@ -71,14 +69,30 @@ document.addEventListener('DOMContentLoaded', () => {
               timestamp: latestData.timestamp,
               heading: latestData.heading
             };
-          }).filter(user => user.lat && user.lng); // Hanya tampilkan user dengan lokasi valid
+          }).filter(user => user.lat && user.lng);
+          
+          // >>> INI KODE BARU UNTUK NOTIFIKASI <<<
+          userArray.forEach(user => {
+            if (user.riskLevel === 'high' || user.riskLevel === 'medium') {
+              const message = `⚠️ Aktivitas mencurigakan dari **${user.name}**. Isu: ${user.issues.join(', ')}`;
+              const type = user.riskLevel === 'high' ? 'error' : 'warning';
+              
+              // Cek apakah notifikasi serupa sudah ada, untuk menghindari duplikasi
+              const isDuplicate = this.notifications.some(n =>
+                n.id === user.id && n.message.includes(user.riskLevel)
+              );
+              
+              if (!isDuplicate) {
+                this.addNotification(type, message, user.id);
+              }
+            }
+          });
           
           this.users = userArray;
           this.updateMapMarkers();
         });
       },
       updateMapMarkers() {
-        // Hapus marker yang sudah tidak ada
         Object.keys(this.markers).forEach(userId => {
           if (!this.users.some(u => u.id === userId)) {
             this.map.removeLayer(this.markers[userId]);
@@ -90,14 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         
-        // Tambahkan atau perbarui marker
         this.users.forEach(user => {
           const latLng = [user.lat, user.lng];
           const customIconHtml = `
-                        <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" style="transform: rotate(${user.heading || 0}deg);">
-                            <div class="arrow"></div>
-                        </div>
-                    `;
+                        <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" style="transform: rotate(${user.heading || 0}deg);">
+                            <div class="arrow"></div>
+                        </div>
+                    `;
           const customIcon = L.divIcon({
             className: 'custom-marker-div-icon',
             html: customIconHtml,
@@ -143,12 +156,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusColor = user.status === 'active' ? 'green' : 'red';
         const riskColor = user.riskLevel === 'high' ? 'red' : user.riskLevel === 'medium' ? 'orange' : 'green';
         return `
-                    <strong>Nama:</strong> ${user.name}<br>
-                    <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
-                    <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
-                    <strong>Update Terakhir:</strong> ${user.lastUpdate || 'N/A'}<br>
-                    <strong>Akurasi:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}
-                `;
+                    <strong>Nama:</strong> ${user.name}<br>
+                    <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
+                    <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
+                    <strong>Update Terakhir:</strong> ${user.lastUpdate || 'N/A'}<br>
+                    <strong>Akurasi:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}
+                `;
       },
       panToUser(user) {
         this.clearPolylines();
@@ -167,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const pathData = snapshot.val();
           if (!pathData) return;
           
-          // Filter out 'latest' entry and get all historical coordinates
           const latLngs = Object.keys(pathData)
             .filter(key => key !== 'latest')
             .sort((a, b) => parseInt(a) - parseInt(b))
@@ -192,8 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(this.polylines).forEach(line => this.map.removeLayer(line));
         this.polylines = {};
       },
-      addNotification(type, message) {
-        this.notifications.unshift({ type, message, time: Date.now() });
+      addNotification(type, message, userId = null) {
+        const now = new Date().toLocaleString();
+        this.notifications.unshift({ type, message, userId, time: now });
       }
     }
   });
