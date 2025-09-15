@@ -9,6 +9,12 @@ document.addEventListener('DOMContentLoaded', () => {
     appId: "1:747934727309:web:0c1fbacd980c4bdf2bb6c4",
     measurementId: "G-DGLR9P3Z33"
   };
+  
+  // Inisialisasi Firebase App
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  
   const app = new Vue({
     el: '#app',
     vuetify: new Vuetify(),
@@ -19,25 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
       markers: {},
       polylines: {},
       accuracyCircles: {},
-      db: null,
+      db: firebase.database(),
       showBottomSheet: false,
       tab: null,
     }),
     mounted() {
-      this.initFirebase();
       this.initMap();
+      this.monitorUsers();
     },
     methods: {
-      initFirebase() {
-        try {
-          firebase.initializeApp(firebaseConfig);
-          this.db = firebase.database();
-          this.monitorUsers();
-        } catch (e) {
-          console.error("Firebase initialization error:", e);
-          this.addNotification('error', 'Gagal terhubung ke Firebase.');
-        }
-      },
       initMap() {
         this.map = L.map('map-container').setView([-6.2088, 106.8456], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -45,53 +41,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }).addTo(this.map);
       },
       monitorUsers() {
-        if (!this.db) return;
+        if (!this.db) {
+          this.addNotification('error', 'Gagal terhubung ke Firebase.');
+          return;
+        }
         
-        // MENGUBAH JALUR INI
+        // Ambil semua data user secara real-time
         this.db.ref('location-data').on('value', snapshot => {
           const data = snapshot.val();
           if (!data) {
             this.users = [];
+            this.updateMapMarkers();
             return;
           }
           
-          const userArray = Object.keys(data).map(key => ({
-            id: key,
-            name: key.replace(/_/g, ' '),
-            address: 'Mencari alamat...',
-            heading: data[key].heading || 0,
-            accuracy: data[key].accuracy || 0,
-            ...data[key]
-          }));
+          const userArray = Object.keys(data).map(key => {
+            const userData = data[key];
+            const latestData = userData.latest || {};
+            return {
+              id: key,
+              name: latestData.namaKaryawan || 'User ' + key.substring(0, 6),
+              lastUpdate: latestData.localTime,
+              lat: latestData.lat,
+              lng: latestData.lng,
+              status: latestData.status,
+              riskLevel: latestData.riskLevel,
+              accuracy: latestData.accuracy,
+              issues: latestData.issues,
+              timestamp: latestData.timestamp,
+              heading: latestData.heading
+            };
+          }).filter(user => user.lat && user.lng); // Hanya tampilkan user dengan lokasi valid
           
           this.users = userArray;
           this.updateMapMarkers();
         });
-        
-        // MENGUBAH JALUR INI
-        this.db.ref('location-data').on('child_added', snapshot => {
-          const userId = snapshot.key;
-          this.db.ref(`location-data/${userId}`).on('child_added', updateSnapshot => {
-            const update = updateSnapshot.val();
-            this.drawUserPath(userId, update);
-            if (update.riskLevel === 'high') {
-              this.addNotification('error', `Fake GPS terdeteksi pada ${update.name}!`);
-            }
-          });
-        });
       },
       updateMapMarkers() {
+        // Hapus marker yang sudah tidak ada
+        Object.keys(this.markers).forEach(userId => {
+          if (!this.users.some(u => u.id === userId)) {
+            this.map.removeLayer(this.markers[userId]);
+            delete this.markers[userId];
+            if (this.accuracyCircles[userId]) {
+              this.map.removeLayer(this.accuracyCircles[userId]);
+              delete this.accuracyCircles[userId];
+            }
+          }
+        });
+        
+        // Tambahkan atau perbarui marker
         this.users.forEach(user => {
           const latLng = [user.lat, user.lng];
-          const isFake = user.riskLevel === 'high';
-          
           const customIconHtml = `
-                                
-                                        <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" 
-                                            style="transform: rotate(${user.heading || 0}deg);">
-                                            <div class="arrow"></div>
-                                        </div>
-                                    `;
+                        <div class="custom-marker-icon ${user.heading === undefined ? 'no-heading' : ''}" style="transform: rotate(${user.heading || 0}deg);">
+                            <div class="arrow"></div>
+                        </div>
+                    `;
           const customIcon = L.divIcon({
             className: 'custom-marker-div-icon',
             html: customIconHtml,
@@ -130,71 +136,64 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
           
-          this.reverseGeocode(user.lat, user.lng).then(address => {
-            const userIndex = this.users.findIndex(u => u.id === user.id);
-            if (userIndex !== -1) {
-              this.$set(this.users[userIndex], 'address', address);
-            }
-            if (this.markers[user.id]) {
-              this.markers[user.id].bindPopup(this.createPopupContent(this.users[userIndex]));
-            }
-          }).catch(error => {
-            console.error("Geocoding failed for", user.name, ":", error);
-            const userIndex = this.users.findIndex(u => u.id === user.id);
-            if (userIndex !== -1) {
-              this.$set(this.users[userIndex], 'address', 'Alamat tidak ditemukan.');
-            }
-          });
+          this.markers[user.id].bindPopup(this.createPopupContent(user));
         });
       },
-      async reverseGeocode(lat, lng) {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
-        try {
-          const response = await fetch(url);
-          const data = await response.json();
-          if (data.display_name) {
-            return data.display_name;
-          } else {
-            return 'Alamat tidak ditemukan.';
-          }
-        } catch (error) {
-          return 'Gagal mengambil alamat.';
-        }
-      },
-      drawUserPath(userId, update) {
-        const latLng = [update.lat, update.lng];
-        if (!this.polylines[userId]) {
-          this.polylines[userId] = L.polyline([], { color: 'blue', weight: 3 }).addTo(this.map);
-        }
-        this.polylines[userId].addLatLng(latLng);
+      createPopupContent(user) {
+        const statusColor = user.status === 'active' ? 'green' : 'red';
+        const riskColor = user.riskLevel === 'high' ? 'red' : user.riskLevel === 'medium' ? 'orange' : 'green';
+        return `
+                    <strong>Nama:</strong> ${user.name}<br>
+                    <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
+                    <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
+                    <strong>Update Terakhir:</strong> ${user.lastUpdate || 'N/A'}<br>
+                    <strong>Akurasi:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}
+                `;
       },
       panToUser(user) {
+        this.clearPolylines();
         if (user.lat && user.lng) {
           this.map.panTo([user.lat, user.lng]);
           this.showBottomSheet = false;
           if (this.markers[user.id]) {
             this.markers[user.id].openPopup();
           }
+          this.loadUserPath(user.id);
         }
+      },
+      async loadUserPath(userId) {
+        try {
+          const snapshot = await this.db.ref(`location-data/${userId}`).once('value');
+          const pathData = snapshot.val();
+          if (!pathData) return;
+          
+          // Filter out 'latest' entry and get all historical coordinates
+          const latLngs = Object.keys(pathData)
+            .filter(key => key !== 'latest')
+            .sort((a, b) => parseInt(a) - parseInt(b))
+            .map(timestamp => {
+              const location = pathData[timestamp];
+              return [location.lat, location.lng];
+            });
+          
+          if (latLngs.length > 1) {
+            if (this.polylines[userId]) {
+              this.map.removeLayer(this.polylines[userId]);
+            }
+            const polyline = L.polyline(latLngs, { color: 'blue', weight: 4 }).addTo(this.map);
+            this.polylines[userId] = polyline;
+            this.map.fitBounds(polyline.getBounds());
+          }
+        } catch (error) {
+          console.error("Gagal memuat jalur user:", error);
+        }
+      },
+      clearPolylines() {
+        Object.values(this.polylines).forEach(line => this.map.removeLayer(line));
+        this.polylines = {};
       },
       addNotification(type, message) {
         this.notifications.unshift({ type, message, time: Date.now() });
-      },
-      createPopupContent(user) {
-        const statusColor = user.status === 'active' ? 'green' : 'red';
-        const riskColor = user.riskLevel === 'high' ? 'red' : user.riskLevel === 'medium' ? 'orange' : 'green';
-        const addressDisplay = user.address || 'Mencari alamat...';
-        
-        return `
-                                <strong>Nama:</strong> ${user.name}<br>
-                                <strong>Status:</strong> <span style="color:${statusColor}">${user.status}</span><br>
-                                <strong>Resiko:</strong> <span style="color:${riskColor}">${user.riskLevel}</span><br>
-                                <strong>Last Update:</strong> ${new Date(user.timestamp).toLocaleString()}<br>
-                                <strong>Alamat:</strong> ${addressDisplay}<br>
-                                <strong>Accuracy:</strong> ${user.accuracy ? user.accuracy.toFixed(2) + 'm' : 'N/A'}<br>
-                                <strong>Updates:</strong> ${user.updateCount}<br>
-                                <strong>Isu:</strong> ${user.issues.join(', ') || 'None'}
-                            `;
       }
     }
   });
